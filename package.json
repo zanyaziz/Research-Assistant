@@ -1,0 +1,51 @@
+{
+  "name": "research-assistant",
+  "version": "1.0.0",
+  "description": "Self-hosted Research Assistant powered by LangChain.js",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "nodemon --watch src --ext ts --exec ts-node -r tsconfig-paths/register src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "migrate": "ts-node -e \"require('./src/db/connection').default.migrate.latest({ directory: 'migrations' }).then(() => { console.log('done'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })\"",
+    "seed": "ts-node scripts/seed-topics.ts",
+    "run-now": "ts-node scripts/run-now.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cheerio": "^0.22.35",
+    "@types/express": "^5.0.6",
+    "@types/jsdom": "^27.0.0",
+    "@types/node": "^25.3.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/puppeteer": "^5.4.7",
+    "@types/uuid": "^10.0.0",
+    "knex": "^3.1.0",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.27",
+    "@langchain/ollama": "^1.2.4",
+    "@langchain/openai": "^1.2.9",
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.13.5",
+    "better-sqlite3": "^12.6.2",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsdom": "^28.1.0",
+    "langchain": "^1.2.25",
+    "node-cron": "^4.2.1",
+    "robots-parser": "^3.0.1",
+    "uuid": "^13.0.0",
+    "winston": "^3.19.0",
+    "zod": "^4.3.6"
+  }
+}

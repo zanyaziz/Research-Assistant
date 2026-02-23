@@ -1,0 +1,42 @@
+# Environment — never commit secrets
+.env
+.env.local
+.env.*.local
+
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build output
+dist/
+web/dist/
+
+# Database (local dev data)
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Puppeteer browser downloads
+.local-chromium/
+
+# Claude Code local settings (tool permissions, not project config)
+.claude/
