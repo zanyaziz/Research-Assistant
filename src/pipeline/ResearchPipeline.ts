@@ -19,6 +19,9 @@ export async function runResearchPipeline(topic: Topic): Promise<string> {
 
     // Step 1: Gather from all configured adapters in parallel
     const adapterNames: string[] = topic.sources || [];
+    if (adapterNames.length === 0) {
+      throw new Error(`Topic "${topic.name}" has no sources configured — add at least one adapter in the topic settings`);
+    }
     logger.info(`ResearchPipeline [1/5]: gathering from ${adapterNames.length} adapter(s): ${adapterNames.join(', ')}`);
     let t = Date.now();
     const gatherResults = await Promise.allSettled(
@@ -59,6 +62,9 @@ export async function runResearchPipeline(topic: Topic): Promise<string> {
     logger.info(`ResearchPipeline [4/5]: ${analyzed.length}/${filtered.length} items analyzed in ${((Date.now() - t) / 1000).toFixed(1)}s`);
 
     // Step 5: Synthesize brief
+    if (analyzed.length === 0) {
+      throw new Error(`No items survived analysis for topic "${topic.name}" — check adapter config, content filters, and LLM connectivity`);
+    }
     logger.info(`ResearchPipeline [5/5]: synthesizing brief from ${analyzed.length} analyzed items`);
     t = Date.now();
     const briefOutput = await synthesizeBrief(analyzed, topic);
