@@ -16,15 +16,20 @@ BAD output characteristics (avoid these):
 Synthesize the source material into a {outputFormat} of no more than {maxLength} words.
 Tone: {tone}
 
-Your brief MUST include:
-1. headline — single sentence capturing the most important finding
-2. keyFindings — 3-5 bullet points with specific facts and figures
-3. analysis — 2-3 paragraphs connecting findings to broader trends
-4. sources — list of URLs used
-5. confidence — rate your confidence: HIGH / MEDIUM / LOW
-6. followUpQuestions — 2-3 questions worth investigating next
+Output ONLY valid JSON matching this exact structure — no preamble, no markdown fences:
+{{
+  "headline": "<single sentence>",
+  "keyFindings": ["<plain string fact 1>", "<plain string fact 2>", "<plain string fact 3>"],
+  "analysis": "<two or three paragraphs as one string, separated by \\n\\n>",
+  "sources": ["<url1>", "<url2>"],
+  "confidence": "HIGH" | "MEDIUM" | "LOW",
+  "followUpQuestions": ["<question 1>", "<question 2>"]
+}}
 
-Output ONLY valid JSON. No preamble, no explanation, no markdown fences.`,
+Rules:
+- keyFindings: MUST be an array of plain strings, not objects
+- analysis: MUST be a single string, not an array
+- All string values must be plain text, no nested objects`,
   ],
   [
     'human',

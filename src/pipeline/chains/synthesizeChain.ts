@@ -44,8 +44,35 @@ export async function synthesizeBrief(
     throw new SyntaxError(`No JSON object found in LLM response`);
   }
 
+  // Coerce common LLM schema deviations before Zod validation:
+  //   keyFindings/followUpQuestions returned as object arrays instead of string arrays
+  //   analysis returned as a string array instead of a single string
+  function normalizeToSchema(raw: any): any {
+    const toStr = (v: unknown): string => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object') {
+        const obj = v as Record<string, unknown>;
+        const key = ['finding', 'text', 'point', 'fact', 'content', 'question', 'description']
+          .find((k) => typeof obj[k] === 'string');
+        if (key) return obj[key] as string;
+      }
+      return String(v ?? '');
+    };
+    const deviations: string[] = [];
+    if (Array.isArray(raw.keyFindings) && raw.keyFindings.some((v: unknown) => typeof v !== 'string')) deviations.push('keyFindings[]→string');
+    if (Array.isArray(raw.analysis)) deviations.push('analysis[]→string');
+    if (deviations.length) logger.debug(`synthesizeChain: normalizing LLM output — ${deviations.join(', ')}`);
+    return {
+      ...raw,
+      keyFindings: Array.isArray(raw.keyFindings) ? raw.keyFindings.map(toStr) : raw.keyFindings,
+      analysis: Array.isArray(raw.analysis) ? raw.analysis.map(toStr).join('\n\n') : raw.analysis,
+      followUpQuestions: Array.isArray(raw.followUpQuestions) ? raw.followUpQuestions.map(toStr) : raw.followUpQuestions,
+      sources: Array.isArray(raw.sources) ? raw.sources.map(toStr) : raw.sources,
+    };
+  }
+
   try {
-    const brief = BriefSchema.parse(extractJson(text));
+    const brief = BriefSchema.parse(normalizeToSchema(extractJson(text)));
     logger.info(`synthesizeChain: done — confidence=${brief.confidence}, ${brief.keyFindings.length} findings in ${((Date.now() - chainStart) / 1000).toFixed(1)}s`);
     return brief;
   } catch (err) {
