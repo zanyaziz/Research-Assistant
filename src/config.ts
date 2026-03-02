@@ -12,8 +12,17 @@ export const config = {
     openaiApiKey: process.env.OPENAI_API_KEY || '',
     anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
-    // Max parallel LLM calls during analyzeItems. Use 1-2 for Ollama (local GPU).
-    concurrency: parseInt(process.env.LLM_CONCURRENCY || '5', 10),
+    // Context window for Ollama. Smaller = faster inference + less RAM.
+    // 2048 is sufficient for individual item analysis (prompts are ~1200 tokens).
+    // Increase to 4096+ if synthesis briefs get truncated.
+    ollamaNumCtx: parseInt(process.env.OLLAMA_NUM_CTX || '2048', 10),
+    // How long Ollama keeps the model loaded between calls. '30m' prevents
+    // cold-reloads between scheduled topic runs. Use '-1' to never unload.
+    ollamaKeepAlive: process.env.OLLAMA_KEEP_ALIVE || '30m',
+    // Max parallel LLM calls during analyzeItems.
+    // Use 1-2 for Ollama/local models (saturates CPU at higher values).
+    // Use 5-10 for cloud APIs (OpenAI, Anthropic).
+    concurrency: parseInt(process.env.LLM_CONCURRENCY || '3', 10),
   },
 
   serper: {

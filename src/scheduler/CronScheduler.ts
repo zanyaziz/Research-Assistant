@@ -8,9 +8,18 @@ import { logger } from '../utils/logger';
 
 const activeTasks = new Map<string, cron.ScheduledTask>();
 
+// Global run queue — ensures topic pipelines execute one at a time, preventing
+// multiple simultaneous full-pipeline runs from overloading the system.
+let runQueue: Promise<void> = Promise.resolve();
+
+function enqueueRun(fn: () => Promise<void>): void {
+  runQueue = runQueue.then(fn).catch(() => {});
+}
+
 export async function startScheduler(): Promise<void> {
   logger.info('CronScheduler: starting');
   await rescheduleAll();
+  scheduleDailyDigest();
 }
 
 export async function rescheduleAll(): Promise<void> {
@@ -35,19 +44,31 @@ export function scheduleTopicRun(topic: { id: string; name: string; schedule: st
     return;
   }
 
-  const task = cron.schedule(topic.schedule, async () => {
-    logger.info(`CronScheduler: triggered run for topic "${topic.name}"`);
-    try {
-      const fullTopic = await TopicModel.findById(topic.id);
-      if (!fullTopic || !fullTopic.enabled) return;
-      await runResearchPipeline(fullTopic);
-      await generateDailyDigest();
-    } catch (err: any) {
-      logger.error(`CronScheduler: run failed for "${topic.name}"`, { message: err.message });
-    }
+  const task = cron.schedule(topic.schedule, () => {
+    logger.info(`CronScheduler: queuing run for topic "${topic.name}"`);
+    enqueueRun(async () => {
+      try {
+        const fullTopic = await TopicModel.findById(topic.id);
+        if (!fullTopic || !fullTopic.enabled) return;
+        await runResearchPipeline(fullTopic);
+      } catch (err: any) {
+        logger.error(`CronScheduler: run failed for "${topic.name}"`, { message: err.message });
+      }
+    });
   });
 
   activeTasks.set(topic.id, task);
+}
+
+// Daily digest runs once at 23:55 regardless of how many topics fired that day.
+function scheduleDailyDigest(): void {
+  cron.schedule('55 23 * * *', async () => {
+    try {
+      await generateDailyDigest();
+    } catch (err: any) {
+      logger.error('CronScheduler: daily digest failed', { message: err.message });
+    }
+  });
 }
 
 async function generateDailyDigest(): Promise<void> {

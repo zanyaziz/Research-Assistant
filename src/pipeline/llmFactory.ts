@@ -10,6 +10,10 @@ export function buildLlm() {
       model,
       temperature,
       baseUrl: ollamaBaseUrl,
+      // Smaller context = smaller KV cache = faster inference + less unified memory pressure.
+      numCtx: config.llm.ollamaNumCtx,
+      // Keep the model loaded between runs so it doesn't cold-reload each time.
+      keepAlive: config.llm.ollamaKeepAlive,
     });
   }
 

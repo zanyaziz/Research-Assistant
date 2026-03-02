@@ -8,6 +8,17 @@ import { BriefModel } from '../db/models/Brief';
 import { logger } from '../utils/logger';
 import type { Topic } from '../db/models/Topic';
 
+const ADAPTER_TIMEOUT_MS = parseInt(process.env.ADAPTER_TIMEOUT_MS || '300000', 10); // 5 min
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms / 1000}s`)), ms)
+    ),
+  ]);
+}
+
 export async function runResearchPipeline(topic: Topic): Promise<string> {
   const run = await ResearchRunModel.create(topic.id);
   logger.info(`ResearchPipeline: starting run ${run.id} for topic "${topic.name}"`);
@@ -32,7 +43,7 @@ export async function runResearchPipeline(topic: Topic): Promise<string> {
           return Promise.resolve([]);
         }
         const adapterConfig = topic.source_config?.[name] || {};
-        return adapter.fetch(adapterConfig);
+        return withTimeout(adapter.fetch(adapterConfig), ADAPTER_TIMEOUT_MS, `adapter:${name}`);
       })
     );
 
