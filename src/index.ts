@@ -74,12 +74,31 @@ async function bootstrap() {
     });
   }
 
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, () => {
     logger.info(`Research Assistant running on http://localhost:${config.port}`);
   });
 
   // Start cron scheduler
   await startScheduler();
+
+  // Graceful shutdown — closes the HTTP server and DB connection before exit
+  // so in-flight writes are flushed and the SQLite file stays consistent.
+  function shutdown(signal: string) {
+    logger.info(`Received ${signal} — shutting down gracefully`);
+    server.close(() => {
+      db.destroy()
+        .then(() => {
+          logger.info('Database connection closed');
+          process.exit(0);
+        })
+        .catch(() => process.exit(1));
+    });
+    // Force-exit if shutdown takes more than 10s
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 bootstrap().catch((err) => {
