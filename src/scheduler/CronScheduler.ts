@@ -1,5 +1,6 @@
 import * as cron from 'node-cron';
 import { TopicModel } from '../db/models/Topic';
+import { ResearchRunModel } from '../db/models/ResearchRun';
 import { BriefModel } from '../db/models/Brief';
 import { DailyDigestModel } from '../db/models/DailyDigest';
 import { runResearchPipeline } from '../pipeline/ResearchPipeline';
@@ -50,7 +51,9 @@ export function scheduleTopicRun(topic: { id: string; name: string; schedule: st
       try {
         const fullTopic = await TopicModel.findById(topic.id);
         if (!fullTopic || !fullTopic.enabled) return;
-        await runResearchPipeline(fullTopic);
+        // Pre-create the run record. No progress emitter for cron runs.
+        const run = await ResearchRunModel.create(fullTopic.id);
+        await runResearchPipeline(fullTopic, run.id);
       } catch (err: any) {
         logger.error(`CronScheduler: run failed for "${topic.name}"`, { message: err.message });
       }

@@ -1,8 +1,10 @@
+import { EventEmitter } from 'events';
 import { analyzePrompt } from '../prompts/analyze.prompt';
 import { AnalysisSchema, type AnalysisOutput } from '../outputSchemas';
 import { buildLlm } from '../llmFactory';
 import { logger } from '../../utils/logger';
 import { config } from '../../config';
+import type { ProgressEvent } from '../../progress/types';
 import type { ScrapedItem } from '../../adapters/SourceAdapter';
 
 function extractJson(text: string): unknown {
@@ -16,7 +18,8 @@ function extractJson(text: string): unknown {
 
 export async function analyzeItems(
   items: ScrapedItem[],
-  topic: { name: string; quality_criteria: Record<string, any> }
+  topic: { name: string; quality_criteria: Record<string, any> },
+  progress?: EventEmitter
 ): Promise<Array<ScrapedItem & { analysis: AnalysisOutput }>> {
   const llm = buildLlm();
   const chain = analyzePrompt.pipe(llm);
@@ -32,6 +35,18 @@ export async function analyzeItems(
   const pipelineStart = Date.now();
 
   logger.info(`analyzeChain: starting — ${total} items, concurrency=${concurrency}`);
+
+  function emitProgress() {
+    const event: ProgressEvent = {
+      type: 'step',
+      step: 4,
+      name: 'analyze',
+      status: 'running',
+      pct: total > 0 ? Math.round(((doneCount + failCount) / total) * 100) : 0,
+      detail: `${doneCount + failCount}/${total} items`,
+    };
+    progress?.emit('data', event);
+  }
 
   async function worker(workerId: number) {
     while (nextIndex < total) {
@@ -57,16 +72,26 @@ export async function analyzeItems(
           `analyzeChain [w${workerId}]: ✓ item ${i + 1}/${total} in ${Date.now() - itemStart}ms` +
           ` — relevance=${parsed.relevance} score=${parsed.qualityScore} — ${item.url}`
         );
+        emitProgress();
       } catch (err: any) {
         failCount++;
         logger.warn(`analyzeChain [w${workerId}]: ✗ item ${i + 1}/${total} in ${Date.now() - itemStart}ms — ${item.url}`, { message: err.message });
+        const logEvent: ProgressEvent = {
+          type: 'log',
+          level: 'warn',
+          message: `Item ${i + 1}/${total} failed analysis: ${err.message}`,
+          ts: new Date().toISOString(),
+        };
+        progress?.emit('data', logEvent);
+        emitProgress();
       }
     }
   }
 
   await Promise.all(Array.from({ length: Math.min(concurrency, total) }, (_, k) => worker(k + 1)));
 
-  logger.info(`analyzeChain: done — ${doneCount} ok, ${failCount} failed, ${total} total in ${((Date.now() - pipelineStart) / 1000).toFixed(1)}s`);
+  const summary = `analyzeChain: done — ${doneCount} ok, ${failCount} failed, ${total} total in ${((Date.now() - pipelineStart) / 1000).toFixed(1)}s`;
+  logger.info(summary);
 
   return results.filter((r): r is ScrapedItem & { analysis: AnalysisOutput } => r !== null);
 }

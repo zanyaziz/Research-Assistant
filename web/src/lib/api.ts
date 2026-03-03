@@ -8,7 +8,7 @@ export const topicsApi = {
   create: (data: any) => api.post('/topics', data).then((r) => r.data),
   update: (id: string, data: any) => api.put(`/topics/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/topics/${id}`),
-  runNow: (id: string) => api.post(`/topics/${id}/run`).then((r) => r.data),
+  runNow: (id: string) => api.post(`/topics/${id}/run`).then((r) => r.data as { runId: string }),
 };
 
 export const briefsApi = {

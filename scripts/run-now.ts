@@ -1,4 +1,5 @@
 import { TopicModel } from '../src/db/models/Topic';
+import { ResearchRunModel } from '../src/db/models/ResearchRun';
 import { runResearchPipeline } from '../src/pipeline/ResearchPipeline';
 import { registry } from '../src/adapters/AdapterRegistry';
 import { SerperAdapter } from '../src/adapters/serper/SerperAdapter';
@@ -31,7 +32,8 @@ async function main() {
   }
 
   console.log(`Running pipeline for: ${topic.name}`);
-  const briefId = await runResearchPipeline(topic);
+  const run = await ResearchRunModel.create(topic.id);
+  const briefId = await runResearchPipeline(topic, run.id);
   console.log(`Done. Brief ID: ${briefId}`);
   process.exit(0);
 }

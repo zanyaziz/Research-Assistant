@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { TopicModel } from '../db/models/Topic';
+import { ResearchRunModel } from '../db/models/ResearchRun';
 import { runResearchPipeline } from '../pipeline/ResearchPipeline';
+import { createRunProgress } from '../progress/RunProgressRegistry';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -44,11 +46,16 @@ router.post('/:id/run', async (req, res) => {
   const topic = await TopicModel.findById(id);
   if (!topic) return res.status(404).json({ error: 'Not found' });
 
-  runResearchPipeline(topic).catch((err) => {
-    logger.error('Manual run failed', { topicId: topic.id, err: err.message });
+  // Create the run record and progress emitter BEFORE responding so the
+  // client receives the runId and can open the SSE stream immediately.
+  const run = await ResearchRunModel.create(topic.id);
+  const progress = createRunProgress(run.id);
+
+  runResearchPipeline(topic, run.id, progress).catch((err) => {
+    logger.error('Manual run failed', { topicId: topic.id, runId: run.id, message: err.message });
   });
 
-  res.json({ message: `Research run triggered for "${topic.name}"` });
+  res.json({ runId: run.id });
 });
 
 export default router;

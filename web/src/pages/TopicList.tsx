@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { topicsApi } from '../lib/api';
+import PipelineOverlay from '../components/PipelineOverlay';
 
 export default function TopicList() {
   const [topics, setTopics] = useState<any[]>([]);
   const [running, setRunning] = useState<string | null>(null);
+  const [activeRun, setActiveRun] = useState<{ runId: string; topicName: string } | null>(null);
 
   useEffect(() => {
     topicsApi.list().then(setTopics);
@@ -17,11 +19,17 @@ export default function TopicList() {
   const triggerRun = async (topic: any) => {
     setRunning(topic.id);
     try {
-      await topicsApi.runNow(topic.id);
-      alert(`Run triggered for "${topic.name}"`);
-    } finally {
+      const { runId } = await topicsApi.runNow(topic.id);
+      setActiveRun({ runId, topicName: topic.name });
+    } catch (err: any) {
+      alert(`Failed to start run: ${err.message}`);
       setRunning(null);
     }
+  };
+
+  const handleOverlayClose = () => {
+    setRunning(null);
+    setActiveRun(null);
   };
 
   const deleteTopic = async (id: string) => {
@@ -52,8 +60,12 @@ export default function TopicList() {
                 <p className="text-xs text-gray-400">{topic.schedule} · {(topic.sources || []).join(', ')}</p>
               </div>
               <div className="flex gap-2 flex-shrink-0">
-                <button onClick={() => triggerRun(topic)} disabled={running === topic.id} className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50">
-                  {running === topic.id ? 'Running...' : 'Run Now'}
+                <button
+                  onClick={() => triggerRun(topic)}
+                  disabled={running !== null}
+                  className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 disabled:opacity-50"
+                >
+                  {running === topic.id ? 'Running…' : 'Run Now'}
                 </button>
                 <a href={`/topics/${topic.id}`} className="text-xs px-3 py-1.5 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">Edit</a>
                 <button onClick={() => deleteTopic(topic.id)} className="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded hover:bg-red-200">Delete</button>
@@ -61,6 +73,14 @@ export default function TopicList() {
             </div>
           ))}
         </div>
+      )}
+
+      {activeRun && (
+        <PipelineOverlay
+          runId={activeRun.runId}
+          topicName={activeRun.topicName}
+          onClose={handleOverlayClose}
+        />
       )}
     </div>
   );
