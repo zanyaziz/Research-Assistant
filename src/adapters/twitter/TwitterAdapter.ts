@@ -4,11 +4,14 @@ import { fetchHtml } from '../../scraper/fetcher';
 import { logger } from '../../utils/logger';
 import * as cheerio from 'cheerio';
 
-// Uses public Nitter instances for scraping — no API key required.
+// Uses public Nitter-compatible instances for scraping — no API key required.
+// Most original Nitter instances went offline in early 2024 when X removed
+// guest account access. xcancel.com is a maintained fork that still works.
+// Check https://status.d420.de for an up-to-date list of live instances.
 const NITTER_INSTANCES = [
-  'https://nitter.net',
-  'https://nitter.privacydev.net',
+  'https://xcancel.com',
   'https://nitter.poast.org',
+  'https://nitter.privacydev.net',
 ];
 
 export class TwitterAdapter implements SourceAdapter {
@@ -39,7 +42,13 @@ export class TwitterAdapter implements SourceAdapter {
     for (const query of cfg.queries || []) {
       try {
         const html = await this.tryNitter(`/search?q=${encodeURIComponent(query)}&f=tweets`);
-        if (html) items.push(...this.parseTweets(html, { query }).slice(0, maxTweets));
+        if (html) {
+          const parsed = this.parseTweets(html, { query }).slice(0, maxTweets);
+          if (parsed.length === 0) {
+            logger.warn(`TwitterAdapter: query "${query}" returned HTML but 0 tweets — Nitter HTML structure may have changed`);
+          }
+          items.push(...parsed);
+        }
       } catch (err: any) {
         logger.warn(`TwitterAdapter: query failed for "${query}"`, { message: err.message });
       }
@@ -49,7 +58,13 @@ export class TwitterAdapter implements SourceAdapter {
       const handle = account.replace('@', '');
       try {
         const html = await this.tryNitter(`/${handle}`);
-        if (html) items.push(...this.parseTweets(html, { account: handle }).slice(0, maxTweets));
+        if (html) {
+          const parsed = this.parseTweets(html, { account: handle }).slice(0, maxTweets);
+          if (parsed.length === 0) {
+            logger.warn(`TwitterAdapter: @${handle} returned HTML but 0 tweets — Nitter HTML structure may have changed`);
+          }
+          items.push(...parsed);
+        }
       } catch (err: any) {
         logger.warn(`TwitterAdapter: account failed for @${handle}`, { message: err.message });
       }
@@ -61,17 +76,27 @@ export class TwitterAdapter implements SourceAdapter {
   private async tryNitter(path: string): Promise<string | null> {
     for (const instance of NITTER_INSTANCES) {
       try {
-        return await fetchHtml(`${instance}${path}`);
-      } catch {
-        continue;
+        const html = await fetchHtml(`${instance}${path}`);
+        logger.debug(`TwitterAdapter: got HTML from ${instance}${path}`);
+        return html;
+      } catch (err: any) {
+        logger.warn(`TwitterAdapter: instance ${instance} failed — ${err.message}`);
       }
     }
+    logger.warn('TwitterAdapter: all Nitter instances failed — see https://status.d420.de for live instances');
     return null;
   }
 
   private parseTweets(html: string, meta: Record<string, any>): ScrapedItem[] {
     const $ = cheerio.load(html);
     const items: ScrapedItem[] = [];
+
+    // Check for a known error page (Nitter rate-limit / login-wall)
+    const bodyText = $('body').text().toLowerCase();
+    if (bodyText.includes('instance is rate-limited') || bodyText.includes('rate limit')) {
+      logger.warn('TwitterAdapter: Nitter instance is rate-limited');
+      return [];
+    }
 
     $('.timeline-item').each((_, el) => {
       const text = $(el).find('.tweet-content').text().trim();
